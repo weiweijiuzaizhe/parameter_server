@@ -15,8 +15,9 @@ if ! [ -e rcv1_test.binary ]; then
 fi
 
 
-name=(train test)
-for t in "${name[@]}"
+#name=(train test)
+#for t in "${name[@]}"
+for t in train test
 do
     echo $t
     # shuffle
