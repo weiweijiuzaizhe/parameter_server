@@ -48,8 +48,14 @@ build/libpsmain.a: build/ps_main.o
 	ar crv $@ $?
 
 # applications
-build/linear: $(addprefix build/app/linear_method/, proto/linear.pb.o main.o) $(PS_LIB)
+build/fm: $(addprefix build/app/fm_method/, proto/fm.pb.o main.o) $(PS_LIB)
 	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
+
+#build/linear: $(addprefix build/app/linear_method/, proto/linear.pb.o main.o) $(PS_LIB)
+#	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
+
+
+
 
 # general rules
 build/%.o: src/%.cc
