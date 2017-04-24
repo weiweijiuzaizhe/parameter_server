@@ -43,16 +43,26 @@ template <typename V>
 class AsyncSGDServer : public ISGDCompNode {
  public:
   AsyncSGDServer(const Config& conf)
-      : ISGDCompNode(), conf_(conf) {
+      : ISGDCompNode(), conf_(conf) {  //异步服务
     SGDState state(conf_.penalty(), conf_.learning_rate());
     state.reporter = &(this->reporter_);
-    if (conf_.async_sgd().algo() == SGDConfig::FTRL) {
+    if (conf_.async_sgd().algo() == SGDConfig::FTRL) {  //algo: FTRL
+      LOG(INFO) << "IN AsyncSGDServer: COME TO FTRL WAY ";
       auto model = new KVMap<Key, V, FTRLEntry, SGDState>();
       model->set_state(state);
       model_ = model;
+      
     } else {
-      if (conf_.async_sgd().ada_grad()) {
-        model_ = new KVMap<Key, V, AdaGradEntry, SGDState>();
+ //     if (conf_.async_sgd().ada_grad()) {
+ //       LOG(INFO) << "IN AsyncSGDServer: COME TO ADA_SGD WAY ";
+ //
+ //       model_ = new KVMap<Key, V, AdaGradEntry, SGDState>();  //被SGD调用
+     if (conf_.async_sgd().algo() == SGDConfig::STANDARD) {  //在conf里写一下 STANDARD,实际是调用adaGrad  
+      LOG(INFO) << "IN AsyncSGDServer: COME TO FTRL WAY ";
+      auto  model = new KVMap<Key, V, AdaGradEntry, SGDState>(); 
+      model->set_state(state);
+      model_ = model;
+
       } else {
         CHECK(false);
       //   model_ = new KVStore<Key, V, AdaGradEntry<V>, SGDState<V>>();
@@ -86,7 +96,7 @@ class AsyncSGDServer : public ISGDCompNode {
   /**
    * @brief Progress state
    */
-  struct SGDState {
+  struct SGDState {  //更新SGD的状态
     SGDState() { }
     SGDState(const PenaltyConfig& h_conf, const LearningRateConfig& lr_conf) {
       lr = std::shared_ptr<LearningRate<V>>(new LearningRate<V>(lr_conf));
@@ -106,7 +116,7 @@ class AsyncSGDServer : public ISGDCompNode {
     void UpdateWeight(V new_weight, V old_weight) {
       // LL << new_weight << " " << old_weight;
       if (new_weight == 0 && old_weight != 0) {
-        -- nnz;
+        -- nnz; 
       } else if (new_weight != 0 && old_weight == 0) {
         ++ nnz;
       }
@@ -156,8 +166,9 @@ class AsyncSGDServer : public ISGDCompNode {
   /**
    * @brief An entry for adaptive gradient
    */
-  struct AdaGradEntry {
+  struct AdaGradEntry {  //和sgd的不同点在于对于学习率会根据梯度变化,见http://blog.csdn.net/luo123n/article/details/48239963
     void Set(const V* data, void* state) {
+      
       SGDState* st = (SGDState*) state;
       // update model
       V grad = *data;
@@ -178,13 +189,25 @@ class AsyncSGDServer : public ISGDCompNode {
   // /**
   //  * @brief An entry for standard gradient desecent
   //  */
-  // struct SGDEntry {
-  //   void Set(const V* data, void* state) {
-  //     // TODO
-  //   }
-  //   void Get(V* data, void* state) { *data = weight; }
-  //   V weight = 0;
-  // };
+  struct SGDEntry {  //和sgd的不同点在于对于学习率会根据梯度变化,见http://blog.csdn.net/luo123n/article/details/48239963
+    void Set(const V* data, void* state) {
+      
+      SGDState* st = (SGDState*) state;
+      // update model
+      V grad = *data;
+      sum_sq_grad += grad * grad;
+      V eta = st->lr->eval(sqrt(sum_sq_grad));
+      V w_old = weight;
+      weight = st->h->proximal(weight - eta * grad, eta);
+
+      // update status
+      st->UpdateWeight(weight, w_old);
+    }
+
+    void Get(V* data, void* state) { *data = weight; }
+    V weight = 0;
+    V sum_sq_grad = 0;
+  };
 };
 
 /**

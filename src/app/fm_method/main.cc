@@ -14,7 +14,10 @@ App* App::Create(const string& conf_str) {
   // create app
   auto my_role = MyNode().role();
   App* app = nullptr;
-  if (conf.has_darlin()) {
+  if (conf.has_darlin()) {  //这个has_darlin是在fm.pb.h
+    
+    LOG(INFO) << "come to has_darlin";  //conf中有darlin,是走了这一步,实际上是一个叫块坐标下降( block-coordinate descent )的算法
+
     if (my_role == Node::SCHEDULER) {
       app = new DarlinScheduler(conf);
     } else if (my_role == Node::WORKER) {
@@ -22,7 +25,10 @@ App* App::Create(const string& conf_str) {
     } else if (my_role == Node::SERVER) {
       app = new DarlinServer(conf);
     }
-  } else if (conf.has_async_sgd()) {
+  } else if (conf.has_async_sgd()) {  //这个has_async_sgd是在fm.pb.h
+    
+    LOG(INFO) << "come to has_async_sgd";  //conf中有sgd,是走了这一步
+
     typedef float Real;
     if (my_role == Node::SCHEDULER) {
       app = new AsyncSGDScheduler(conf);
