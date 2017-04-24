@@ -42,8 +42,7 @@ class AsyncSGDScheduler : public ISGDScheduler {
 template <typename V>
 class AsyncSGDServer : public ISGDCompNode {
  public:
-  AsyncSGDServer(const Config& conf)
-      : ISGDCompNode(), conf_(conf) {  //异步服务
+  AsyncSGDServer(const Config& conf): ISGDCompNode(), conf_(conf) {  //异步服务
     SGDState state(conf_.penalty(), conf_.learning_rate());
     state.reporter = &(this->reporter_);
     if (conf_.async_sgd().algo() == SGDConfig::FTRL) {  //algo: FTRL
@@ -59,7 +58,8 @@ class AsyncSGDServer : public ISGDCompNode {
  //       model_ = new KVMap<Key, V, AdaGradEntry, SGDState>();  //被SGD调用
      if (conf_.async_sgd().algo() == SGDConfig::STANDARD) {  //在conf里写一下 STANDARD,实际是调用adaGrad  
       LOG(INFO) << "IN AsyncSGDServer: COME TO FTRL WAY ";
-      auto  model = new KVMap<Key, V, AdaGradEntry, SGDState>(); 
+      //auto  model = new KVMap<Key, V, AdaGradEntry, SGDState>(); 
+      auto  model = new KVMap<Key, V, SGDEntry, SGDState>(); 
       model->set_state(state);
       model_ = model;
 
@@ -166,7 +166,7 @@ class AsyncSGDServer : public ISGDCompNode {
   /**
    * @brief An entry for adaptive gradient
    */
-  struct AdaGradEntry {  //和sgd的不同点在于对于学习率会根据梯度变化,见http://blog.csdn.net/luo123n/article/details/48239963
+  struct AdaGradEntry {  //和sgd的不同点在于对于学习率会根据梯度变化,见 http://blog.csdn.net/luo123n/article/details/48239963
     void Set(const V* data, void* state) {
       
       SGDState* st = (SGDState*) state;
@@ -189,16 +189,16 @@ class AsyncSGDServer : public ISGDCompNode {
   // /**
   //  * @brief An entry for standard gradient desecent
   //  */
-  struct SGDEntry {  //和sgd的不同点在于对于学习率会根据梯度变化,见http://blog.csdn.net/luo123n/article/details/48239963
+  struct SGDEntry {  //和sgd的不同点在于对于学习率会根据梯度变化,见 http://blog.csdn.net/luo123n/article/details/48239963
     void Set(const V* data, void* state) {
       
       SGDState* st = (SGDState*) state;
       // update model
       V grad = *data;
-      sum_sq_grad += grad * grad;
-      V eta = st->lr->eval(sqrt(sum_sq_grad));
+ //     sum_sq_grad += grad * grad;
+ //     V eta = st->lr->eval(sqrt(sum_sq_grad));  //这里调用的是src/app/fm_method/learning_rate.h中的eval,是根据grad计算出一个步长
       V w_old = weight;
-      weight = st->h->proximal(weight - eta * grad, eta);
+      weight = st->h->proximal(weight - 0.01 * grad, 0.01);
 
       // update status
       st->UpdateWeight(weight, w_old);
