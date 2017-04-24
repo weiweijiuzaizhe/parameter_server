@@ -56,7 +56,7 @@ class AsyncSGDServer : public ISGDCompNode {
  //       LOG(INFO) << "IN AsyncSGDServer: COME TO ADA_SGD WAY ";
  //
  //       model_ = new KVMap<Key, V, AdaGradEntry, SGDState>();  //被SGD调用
-     if (conf_.async_sgd().algo() == SGDConfig::STANDARD) {  //在conf里写一下 STANDARD,实际是调用adaGrad  
+     if (conf_.async_sgd().algo() == SGDConfig::STANDARD) {  //在conf里写一下 STANDARD,实际调用自己写的sgd
       LOG(INFO) << "IN AsyncSGDServer: COME TO FTRL WAY ";
       //auto  model = new KVMap<Key, V, AdaGradEntry, SGDState>(); 
       auto  model = new KVMap<Key, V, SGDEntry, SGDState>(); 
@@ -290,13 +290,19 @@ class AsyncSGDWorker : public ISGDCompNode {
     auto X = data_[id].second;
     data_.erase(id);
     mu_.unlock();
-    CHECK_EQ(X->rows(), Y->rows());
+    CHECK_EQ(X->rows(), Y->rows());  //检查行数一致
     VLOG(1) << "compute gradient for minibatch " << id;
 
     // evaluate
-    SArray<V> Xw(Y->rows());
-    auto w = model_[id].value;
-    Xw.EigenArray() = *X * w.EigenArray();
+    SArray<V> Xw(Y->rows());  //Zero-copy constructor, namely just copy the pointer
+    
+
+
+
+
+    auto w = model_[id].value;  //[]是重载的运算符,Returns the key-vale pairs in channel "chl"
+
+    Xw.EigenArray() = *X * w.EigenArray();  // auto X = data_[id].second;
     SGDProgress prog;
     prog.add_objective(loss_->evaluate({Y, Xw.SMatrix()}));
     // not with penalty. penalty_->evaluate(w.SMatrix());
@@ -307,7 +313,7 @@ class AsyncSGDWorker : public ISGDCompNode {
     this->reporter_.Report(prog);
 
     // compute the gradient
-    SArray<V> grad(X->cols());
+    SArray<V> grad(X->cols());  //这个函数在哪里?怀疑是个宏
     loss_->compute({Y, X, Xw.SMatrix()}, {grad.SMatrix()});
 
     // push the gradient
@@ -320,6 +326,14 @@ class AsyncSGDWorker : public ISGDCompNode {
 
 private:
   KVVector<Key, V> model_;
+/**
+  KVVector的核心是有这样一个双数组数据结构来表示一个稀疏向量
+  struct KVPairs {
+    SArray<K> key;    // [key_0,  ..., key_n]
+    SArray<V> value;  // [val_00, ..., val_0k, ..., val_n0, ..., val_nk]
+  };
+*/
+
   LossPtr<V> loss_;
 
   // minibatch_id, Y, X

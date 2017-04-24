@@ -21,7 +21,7 @@ class Evaluation {
 };
 
 template <typename V>
-V Evaluation<V>::auc(const SArray<V>& label, const SArray<V>& predict) {
+V Evaluation<V>::auc(const SArray<V>& label, const SArray<V>& predict) {  //输入标记值,预估值,计算auc
   int n = label.size();
   CHECK_EQ(n, predict.size());
   struct Entry {
@@ -51,7 +51,7 @@ V Evaluation<V>::auc(const SArray<V>& label, const SArray<V>& predict) {
 
 
 template <typename V>
-V Evaluation<V>::accuracy(const SArray<V>& label, const SArray<V>& predict, V threshold) {
+V Evaluation<V>::accuracy(const SArray<V>& label, const SArray<V>& predict, V threshold) {  //输入标记值,预估值,阈值,计算准确率
   int n = label.size();
   CHECK_EQ(n, predict.size());
   V correct = 0;
