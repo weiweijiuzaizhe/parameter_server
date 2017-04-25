@@ -105,33 +105,36 @@ class MinibatchReader {
   }
 
   /**
-   * @brief Reads a minibatch
+   * @brief Reads a minibatch,把data_prefetcher_.pop(&data)的值提取出需要的内容赋给Y,X,key
    *
    * @param Y the *minibatch_size* x 1 label vector
-   * @param X the *minibatch_size* x p data matrix, all features are remapped to
-   * continues id starting from 0 to p-1
+   * @param X the *minibatch_size* x p data matrix, all features are remapped to continues id starting from 0 to p-1
    * @param key p length array contains the original feature id in the data
    *
    * @return false if end of file
    */
   bool Read(MatrixPtr<V>& Y, MatrixPtr<V>& X, SArray<Key>& key) {
     MatrixPtrList<V> data;
-    if (!data_prefetcher_.pop(&data)) return false;
+    if (!data_prefetcher_.pop(&data)) return false;  //data_prefetcher_中有了reader读到的数据
     CHECK_EQ(data.size(), 2);
-    Y = data[0];
+    Y = data[0];  //y是标记值
 
     // localizer
-    SArray<Key> uniq_key;
-    SArray<uint8> key_cnt;
-    Localizer<Key, V> localizer;
-    localizer.CountUniqIndex(data[1], &uniq_key, &key_cnt);
+    SArray<Key> uniq_key;  //
+    SArray<uint8> key_cnt;  //
+    Localizer<Key, V> localizer;  //
+    localizer.CountUniqIndex(data[1], &uniq_key, &key_cnt);  //
 
     // filter keys
-    filter_.InsertKeys(uniq_key, key_cnt);
-    key = filter_.QueryKeys(uniq_key, key_freq_);
+    filter_.InsertKeys(uniq_key, key_cnt);  //存放在data_里,data_是一个一维数组,key经过hash之后得到数组下标,key_cnt作为数组元素值存放
+    key = filter_.QueryKeys(uniq_key, key_freq_);  //过滤掉出现次数小于key_freq_的维度
+
+
+    
+
 
     // remap keys
-    X = localizer.RemapIndex(key);
+    X = localizer.RemapIndex(key);  //调用的是145行
     return true;
   }
 

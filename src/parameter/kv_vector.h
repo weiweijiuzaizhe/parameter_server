@@ -53,7 +53,7 @@ class KVVector : public Parameter {
   };
 
   /// @brief Returns the key-vale pairs in channel "chl"
-  KVPairs& operator[] (int chl) { Lock l(mu_); return data_[chl]; }
+  KVPairs& operator[] (int chl) { Lock l(mu_); return data_[chl]; }  //定义[]的运算符重载
 
   /// @brief Clears both key and value at channel "chl"
   void Clear(int chl) {
@@ -100,7 +100,8 @@ class KVVector : public Parameter {
    *
    * @return the timestamp
    */
-  int Pull(const Task& request, const SArray<K>& keys,
+  int Pull(const Task& request, 
+           const SArray<K>& keys,
            const Message::Callback& callback = Message::Callback());
 
 

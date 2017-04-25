@@ -290,7 +290,7 @@ template<typename V> class SArray {
   V* data_ = nullptr;
   std::shared_ptr<void> ptr_ = std::shared_ptr<void>(nullptr);
 
-};
+}; //end of SArray
 
 // for debug use
 template <typename V>

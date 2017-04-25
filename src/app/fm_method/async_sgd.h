@@ -19,7 +19,7 @@ namespace FM {
 /**
  * @brief The scheduler node
  */
-class AsyncSGDScheduler : public ISGDScheduler {
+class AsyncSGDScheduler : public ISGDScheduler {  //Scheduler端几乎没有变化
  public:
   AsyncSGDScheduler(const Config& conf)
       : ISGDScheduler(), conf_(conf) {
@@ -52,14 +52,15 @@ class AsyncSGDServer : public ISGDCompNode {
       model_ = model;
       
     } else {
+
+ //     原来代码里如下,怀疑是adagrad没有完成或者和proto的格式懒得改才这样写的     
  //     if (conf_.async_sgd().ada_grad()) {
- //       LOG(INFO) << "IN AsyncSGDServer: COME TO ADA_SGD WAY ";
- //
  //       model_ = new KVMap<Key, V, AdaGradEntry, SGDState>();  //被SGD调用
-     if (conf_.async_sgd().algo() == SGDConfig::STANDARD) {  //在conf里写一下 STANDARD,实际调用自己写的sgd
-      LOG(INFO) << "IN AsyncSGDServer: COME TO FTRL WAY ";
+
+     if (conf_.async_sgd().algo() == SGDConfig::STANDARD) {  //在conf里写一下STANDARD,实际调用自己写的sgd
+      LOG(INFO) << "IN AsyncSGDServer: COME TO SGD WAY ";
       //auto  model = new KVMap<Key, V, AdaGradEntry, SGDState>(); 
-      auto  model = new KVMap<Key, V, SGDEntry, SGDState>(); 
+      auto  model = new KVMap<Key, V, SGDEntry, SGDState>();   //typedef uint64 Key;
       model->set_state(state);
       model_ = model;
 
@@ -192,8 +193,8 @@ class AsyncSGDServer : public ISGDCompNode {
   struct SGDEntry {  //和sgd的不同点在于对于学习率会根据梯度变化,见 http://blog.csdn.net/luo123n/article/details/48239963
     void Set(const V* data, void* state) {
       
-      SGDState* st = (SGDState*) state;
-      // update model
+      SGDState* st = (SGDState*) state  ;    // update model;
+
       V grad = *data;
  //     sum_sq_grad += grad * grad;
  //     V eta = st->lr->eval(sqrt(sum_sq_grad));  //这里调用的是src/app/fm_method/learning_rate.h中的eval,是根据grad计算出一个步长
@@ -254,7 +255,7 @@ class AsyncSGDWorker : public ISGDCompNode {
     VLOG(1) << "workload data: " << load.data().ShortDebugString();
     const auto& sgd = conf_.async_sgd();
     MinibatchReader<V> reader;
-    reader.InitReader(load.data(), sgd.minibatch(), sgd.data_buf());
+    reader.InitReader(load.data(), sgd.minibatch(), sgd.data_buf());//sgd.minibatch()每个batch读取多少条数据
     reader.InitFilter(sgd.countmin_n(), sgd.countmin_k(), sgd.tail_feature_freq());
     reader.Start();
 
@@ -265,17 +266,52 @@ class AsyncSGDWorker : public ISGDCompNode {
       mu_.lock();
       auto& data = data_[id];
       mu_.unlock();
-      if (!reader.Read(data.first, data.second, key)) break;
+      if (!reader.Read(data.first, data.second, key)) break; //data.first是Y, data.second是x,定义在sgd.h
+      
+
       VLOG(1) << "load minibatch " << id << ", X: "
               << data.second->rows() << "-by-" << data.second->cols();
 
       // pull the weight
       auto req = Parameter::Request(id, -1, {}, sgd.pull_filter());
-      model_[id].key = key;
-      model_.Pull(req, key, [this, id]() { ComputeGradient(id); });
+      
+
+
+      //key p length array contains the original feature id in the data
+
+      //TO  要在这里改变一下,建立一个 max_feature_n ,对应的隐向量的id 为 feature_id + max_feature_n + 1 ,因为typedef uint64 Key,所以位数足够
+      // 遍历 SArray<Key> key 里面的值,push_back  对应的feature_id + max_feature_n + 1
+
+
+
+      SArray<Key> fm_key;
+      uint64 max_feature_n = 1000000000;  //10亿  
+      
+
+      model_[id].key = key;    //  KVVector<Key, V> model_; 要改的是这行,FM的key比LR的key要多n+1个
+      model_.Pull(req, key, [this, id]() { ComputeGradient(id); });   //pull之后就计算这个点上的梯度,ComputeGradient 中有 改变model的值并且push到server端的动作
+
+
+  /**
+   * @brief Pull data from servers
+   *
+   * @param request
+   * @param keys n keys
+   * @param callback called when responses of this request is received
+   *
+   * @return the timestamp
+   */
+  
+  /*
+    int Pull(const Task& request, 
+           const SArray<K>& keys,
+           const Message::Callback& callback = Message::Callback());
+
+  */
+
     }
 
-    while (processed_batch_ < id) { usleep(500); }
+    while (processed_batch_ < id) { usleep(500); }  //这个worker跑得太快了
     LOG(INFO) << MyNodeID() << ": finished workload " << load.id();
   }
 
@@ -290,34 +326,33 @@ class AsyncSGDWorker : public ISGDCompNode {
     auto X = data_[id].second;
     data_.erase(id);
     mu_.unlock();
-    CHECK_EQ(X->rows(), Y->rows());  //检查行数一致
+    CHECK_EQ(X->rows(), Y->rows());  //  检查行数一致
     VLOG(1) << "compute gradient for minibatch " << id;
 
     // evaluate
-    SArray<V> Xw(Y->rows());  //Zero-copy constructor, namely just copy the pointer
-    
+    SArray<V> Xw(Y->rows());  // Y->rows()返回一个int值, Zero-copy constructor, namely just copy the pointer,生成变量Xw
 
+    auto w = model_[id].value;  //  []是重载的运算符,Returns the key-vale pairs in channel "chl",value是双数组的第二个数组,第一个是key,都是SArray<V>类型的
 
+    Xw.EigenArray() = *X * w.EigenArray();  // auto X = data_[id].second,是数据的各个维度值
 
-
-    auto w = model_[id].value;  //[]是重载的运算符,Returns the key-vale pairs in channel "chl"
-
-    Xw.EigenArray() = *X * w.EigenArray();  // auto X = data_[id].second;
     SGDProgress prog;
+
     prog.add_objective(loss_->evaluate({Y, Xw.SMatrix()}));
     // not with penalty. penalty_->evaluate(w.SMatrix());
-    prog.add_auc(Evaluation<V>::auc(Y->value(), Xw));
+    prog.add_auc(Evaluation<V>::auc(Y->value(), Xw));  //  Xw是预测值
     prog.add_accuracy(Evaluation<V>::accuracy(Y->value(), Xw));
     prog.set_num_examples_processed(
-        prog.num_examples_processed() + Xw.size());
+        prog.num_examples_processed() + Xw.size()
+        );
     this->reporter_.Report(prog);
 
     // compute the gradient
-    SArray<V> grad(X->cols());  //这个函数在哪里?怀疑是个宏
-    loss_->compute({Y, X, Xw.SMatrix()}, {grad.SMatrix()});
+    SArray<V> grad(X->cols());  //是构造函数,产生变量grad,类型SArray<V>
+    loss_->compute({Y, X, Xw.SMatrix()}, {grad.SMatrix()});  //调用的是44行   //src/util/matrix.h:14:template<typename V> using MatrixPtrList = std::vector<MatrixPtr<V>>;
 
     // push the gradient
-    auto req = Parameter::Request(id, -1, {}, conf_.async_sgd().push_filter());
+    auto req = Parameter::Request(id, -1, {}, conf_.async_sgd().push_filter()); 
     // grad.EigenArray() /= (V)Y->rows();
     // LL << grad;
     model_.Push(req, model_[id].key, {grad}, [this](){ ++ processed_batch_; });

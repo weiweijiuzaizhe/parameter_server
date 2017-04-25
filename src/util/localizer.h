@@ -96,7 +96,9 @@ class Localizer {
 template<typename I, typename V>
 template<typename C>
 void Localizer<I,V>::CountUniqIndex(
-    const SArray<I>& idx, SArray<I>* uniq_idx, SArray<C>* idx_frq) {
+    const SArray<I>& idx, 
+    SArray<I>* uniq_idx, 
+    SArray<C>* idx_frq) {
   if (idx.empty()) return;
   CHECK(uniq_idx);
   CHECK_LT(idx.size(), kuint32max)
@@ -137,10 +139,12 @@ void Localizer<I,V>::CountUniqIndex(
   }
 }
 
+
+
 template<typename I, typename V>
-MatrixPtr<V> Localizer<I,V>::RemapIndex(const SArray<I>& idx_dict) {
+MatrixPtr<V> Localizer<I,V>::RemapIndex(const SArray<I>& idx_dict) { 
   CHECK(mat_);
-  return RemapIndex(mat_->info(), mat_->offset(), mat_->index(), mat_->value(), idx_dict);
+  return RemapIndex(mat_->info(), mat_->offset(), mat_->index(), mat_->value(), idx_dict);  //5个参数 , SparseMatrixPtr<I,V> mat_;
 }
 
 template<typename I, typename V>
@@ -156,7 +160,7 @@ template<typename I, typename V>
 MatrixPtr<V> Localizer<I, V>::RemapIndex(
     const MatrixInfo& info, const SArray<size_t>& offset,
     const SArray<I>& index, const SArray<V>& value,
-    const SArray<I>& idx_dict) const {
+    const SArray<I>& idx_dict) const {   // 5个参数
   // LL << index << "\n" << idx_dict;
   if (index.empty() || idx_dict.empty()) return MatrixPtr<V>();
   CHECK_NE(info.type(), MatrixInfo::DENSE)

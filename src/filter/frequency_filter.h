@@ -49,7 +49,7 @@ SArray<K> FreqencyFilter<K,V>::QueryKeys(const SArray<K>& key, int freqency) {
   CHECK_LT(freqency, kuint8max) << "change to uint16 or uint32...";
   SArray<K> filtered_key;
   for (auto k : key) {
-    if ((int)count_.query(k) > freqency) {
+    if ((int)count_.query(k) > freqency) {  //对应维度上出现的样本数大于freqency
      filtered_key.push_back(k);
     }
   }
