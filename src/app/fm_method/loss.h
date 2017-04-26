@@ -2,7 +2,7 @@
 #include "util/common.h"
 #include "util/matrix.h"
 #include "app/fm_method/proto/fm.pb.h"
-#include <Eigen/Dense>
+#include <Eigen/Dense>  //这个是什么语法
 
 namespace PS {
 namespace FM {
@@ -38,10 +38,10 @@ class ScalarLoss : public Loss<T> {
     SArray<T> y(data[0]->value());
     SArray<T> Xw(data[1]->value());
     CHECK_EQ(y.size(), Xw.size());
-    return evaluate(y.EigenArray(), Xw.EigenArray());
+    return evaluate(y.EigenArray(), Xw.EigenArray()); //调用的是105行evaluate
   }
 
-  void compute(const MatrixPtrList<T>& data, MatrixPtrList<T> gradients) {
+  void compute(const MatrixPtrList<T>& data, MatrixPtrList<T> gradients) {  //src/util/matrix.h:14:template<typename V> using MatrixPtrList = std::vector<MatrixPtr<V>>;
     if (gradients.size() == 0) return;
 
     CHECK_EQ(data.size(), 3);
@@ -67,7 +67,7 @@ class ScalarLoss : public Loss<T> {
 
 // label = 1 or -1
 template <typename T>
-class BinaryClassificationLoss : public ScalarLoss<T> {
+class BinaryClassificationLoss : public ScalarLoss<T> {  //这是一个空定义
 };
 
 
@@ -88,7 +88,8 @@ class LogitLoss : public BinaryClassificationLoss<T> {
     // the performace.
     EArray tau = 1 / ( 1 + exp( y * Xw ));
 
-    if (gradient.size())
+    //有下代码可见要么用一阶的,要么用二阶的值
+    if (gradient.size()) 
       gradient = X->transTimes( -y * tau );
 
     if (diag_hessian.size())
@@ -97,7 +98,7 @@ class LogitLoss : public BinaryClassificationLoss<T> {
 };
 
 template <typename T>
-class SquareHingeLoss : public BinaryClassificationLoss<T> {
+class SquareHingeLoss : public BinaryClassificationLoss<T> {  //The Hinge Loss 定义为 E(z) = max(0,1-z),Square Hinge Loss 定义为 E(z) = (max(0,1-z))^2
  public:
   typedef Eigen::Array<T, Eigen::Dynamic, 1> EArray;
   typedef Eigen::Map<EArray> EArrayMap;
@@ -112,16 +113,46 @@ class SquareHingeLoss : public BinaryClassificationLoss<T> {
   }
 };
 
+
+template <typename T>
+class FmSquareLoss : public BinaryClassificationLoss<T> {
+ public:
+  typedef Eigen::Array<T, Eigen::Dynamic, 1> EArray;  //Eigen是有关线性代数（矩阵、向量等）的c++模板库,Array<typename Scalar, int RowsAtCompileTime, int ColsAtCompileTime>
+  typedef Eigen::Map<EArray> EArrayMap;
+
+  T evaluate(const EArrayMap& y, const EArrayMap& Xw) { //本意 Xw 就是X(n*m矩阵)和w(m*1) 的乘积  ,但是这里要让Xw 变为FM的预测值 
+   
+       return   ( y - Xw ).square().sum();
+     //return (1- y * Xw).max(EArray::Zero(y.size())).square().sum();
+  }
+
+
+  void compute(const EArrayMap& y, const MatrixPtr<T>& X, const EArrayMap& Xw,
+               EArrayMap gradient, EArrayMap diag_hessian) {
+    //TODO
+
+    gradient = - 2 *  X->transTimes(y * (y * Xw > 1.0).template cast<T>());
+  }
+};
+
+
+
+
+
 template<typename T>
 using LossPtr = std::shared_ptr<Loss<T>>;
 
 template<typename T>
-static LossPtr<T> createLoss(const LossConfig& config) {
+static LossPtr<T> createLoss(const LossConfig& config) {  //这个LossConfig是在proto中定义的
   switch (config.type()) {
     case LossConfig::LOGIT:
       return LossPtr<T>(new LogitLoss<T>());
     case LossConfig::SQUARE_HINGE:
       return LossPtr<T>(new SquareHingeLoss<T>());
+
+    case LossConfig::SQUARE:  //每个loss都要对应一个evaluate,计算当前样本的loss,对应一个compute,计算当前样本的梯度
+      return LossPtr<T>(new FmSquareLoss<T>());
+
     default:
       CHECK(false) << "unknown type: " << config.DebugString();
   }

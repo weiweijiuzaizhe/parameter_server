@@ -255,19 +255,31 @@ class AsyncSGDWorker : public ISGDCompNode {
     VLOG(1) << "workload data: " << load.data().ShortDebugString();
     const auto& sgd = conf_.async_sgd();
     MinibatchReader<V> reader;
-    reader.InitReader(load.data(), sgd.minibatch(), sgd.data_buf());//sgd.minibatch()每个batch读取多少条数据
+    reader.InitReader(load.data(), sgd.minibatch(), sgd.data_buf());  //sgd.minibatch()每个batch读取多少条数据
     reader.InitFilter(sgd.countmin_n(), sgd.countmin_k(), sgd.tail_feature_freq());
     reader.Start();
 
     processed_batch_ = 0;
     int id = 0;
     SArray<Key> key;
+    
+
+
     for (; ; ++id) {
       mu_.lock();
       auto& data = data_[id];
       mu_.unlock();
-      if (!reader.Read(data.first, data.second, key)) break; //data.first是Y, data.second是x,定义在sgd.h
       
+      /**
+       pair_.resize(idx.size());  //resize()可以认为是分配空间  ,pair_是一个SArray<Pair> 类型
+        for (size_t i = 0; i < idx.size(); ++i) {
+        pair_[i].k = idx[i];
+        pair_[i].i = i;
+        }
+        */
+       
+
+      if (!reader.Read(data.first, data.second, key)) break; //data.first是Y, data.second是x,定义在sgd.h
 
       VLOG(1) << "load minibatch " << id << ", X: "
               << data.second->rows() << "-by-" << data.second->cols();
@@ -282,14 +294,27 @@ class AsyncSGDWorker : public ISGDCompNode {
       //TO  要在这里改变一下,建立一个 max_feature_n ,对应的隐向量的id 为 feature_id + max_feature_n + 1 ,因为typedef uint64 Key,所以位数足够
       // 遍历 SArray<Key> key 里面的值,push_back  对应的feature_id + max_feature_n + 1
 
-
-
       SArray<Key> fm_key;
-      uint64 max_feature_n = 1000000000;  //10亿  
+      Key max_feature_n = 1000000000;  //10亿  
       
+      fm_key.resize( key.size() * 2 );
+      
+      for (size_t i = 0; i < key.size(); ++i) {
+          fm_key[i] = key[i];
+       }
 
-      model_[id].key = key;    //  KVVector<Key, V> model_; 要改的是这行,FM的key比LR的key要多n+1个
-      model_.Pull(req, key, [this, id]() { ComputeGradient(id); });   //pull之后就计算这个点上的梯度,ComputeGradient 中有 改变model的值并且push到server端的动作
+      for (size_t i = key.size(); i < key.size() * 2; ++i) {  
+          fm_key[i] = key[i] +  max_feature_n + 1;
+       }
+
+
+       model_[id].key = fm_key;    //  KVVector<Key, V> model_; 要改的是这行,FM的key比LR的key要多n+1个
+       model_.Pull(req, fm_key, [this, id]() { ComputeGradient(id); }); 
+
+
+
+      //model_[id].key = key;    //  KVVector<Key, V> model_; 要改的是这行,FM的key比LR的key要多n+1个
+      //model_.Pull(req, key, [this, id]() { ComputeGradient(id); });   //pull之后就计算这个点上的梯度,ComputeGradient 中有 改变model的值并且push到server端的动作
 
 
   /**
@@ -320,23 +345,30 @@ class AsyncSGDWorker : public ISGDCompNode {
    *
    * @param id minibatch id
    */
-  void ComputeGradient(int id) {
+  void ComputeGradient(int id) {  //这里计算的梯度是obj的梯度
+
     mu_.lock();
     auto Y = data_[id].first;
     auto X = data_[id].second;
     data_.erase(id);
     mu_.unlock();
+
+
     CHECK_EQ(X->rows(), Y->rows());  //  检查行数一致
     VLOG(1) << "compute gradient for minibatch " << id;
 
+
+
     // evaluate
     SArray<V> Xw(Y->rows());  // Y->rows()返回一个int值, Zero-copy constructor, namely just copy the pointer,生成变量Xw
-
+    
     auto w = model_[id].value;  //  []是重载的运算符,Returns the key-vale pairs in channel "chl",value是双数组的第二个数组,第一个是key,都是SArray<V>类型的
+    
 
-    Xw.EigenArray() = *X * w.EigenArray();  // auto X = data_[id].second,是数据的各个维度值
-
+    Xw.EigenArray() = *X * w.EigenArray();  // auto X = data_[id].second,是数据的各个维度值,X是n*m,w是 m*1,Xw是 n*1,根据后面的意思,Xw是预测值
+    
     SGDProgress prog;
+
 
     prog.add_objective(loss_->evaluate({Y, Xw.SMatrix()}));
     // not with penalty. penalty_->evaluate(w.SMatrix());
@@ -346,6 +378,8 @@ class AsyncSGDWorker : public ISGDCompNode {
         prog.num_examples_processed() + Xw.size()
         );
     this->reporter_.Report(prog);
+
+
 
     // compute the gradient
     SArray<V> grad(X->cols());  //是构造函数,产生变量grad,类型SArray<V>
