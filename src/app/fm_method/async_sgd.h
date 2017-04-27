@@ -58,8 +58,8 @@ class AsyncSGDServer : public ISGDCompNode {
  //
  //       model_ = new KVMap<Key, V, AdaGradEntry, SGDState>();  //被SGD调用
      if (conf_.async_sgd().algo() == SGDConfig::STANDARD) {  //在conf里写一下 STANDARD,实际是调用adaGrad  
-      LOG(INFO) << "IN AsyncSGDServer: COME TO FTRL WAY ";
-      auto  model = new KVMap<Key, V, AdaGradEntry, SGDState>(); 
+      LOG(INFO) << "IN AsyncSGDServer: COME TO SGD WAY ";
+      auto  model = new KVMap<Key, V, SGDEntry, SGDState>(); 
       model->set_state(state);
       model_ = model;
 
@@ -195,8 +195,12 @@ class AsyncSGDServer : public ISGDCompNode {
       SGDState* st = (SGDState*) state;
       // update model
       V grad = *data;
-      sum_sq_grad += grad * grad;
-      V eta = st->lr->eval(sqrt(sum_sq_grad));
+      //sum_sq_grad += grad * grad;
+      
+
+      //V eta = st->lr->eval(sqrt(sum_sq_grad));
+      
+      V eta = 0.001;
       V w_old = weight;
       weight = st->h->proximal(weight - eta * grad, eta);
 
