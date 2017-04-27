@@ -50,9 +50,9 @@ class ElasticNet : public Penalty<T> {
 
   T proximal(T z, T eta) {
     CHECK_GT(eta, 0);
-    T leta = lambda1_ * eta;
+    T leta = lambda1_ * eta;  
     if (z <= leta && z >= -leta) return 0;
-    return z > 0 ? (z - leta) / ( 1 + lambda2_ * eta) : (z + leta) / ( 1 + lambda2_ * eta);
+    return z > 0 ? (z - leta) / ( 1 + lambda2_ * eta) : (z + leta) / ( 1 + lambda2_ * eta); //
   }
  private:
   T lambda1_, lambda2_;

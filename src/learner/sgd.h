@@ -15,6 +15,10 @@
 #include "learner/workload_pool.h"
 namespace PS {
 
+
+
+
+
 /**
  * @brief The base class of a scheduler node
  */
@@ -123,7 +127,16 @@ class MinibatchReader {
     SArray<Key> uniq_key;  //
     SArray<uint8> key_cnt;  //
     Localizer<Key, V> localizer;  //
-    localizer.CountUniqIndex(data[1], &uniq_key, &key_cnt);  //
+    
+
+
+
+
+
+    localizer.CountUniqIndex(data[1], &uniq_key, &key_cnt);  //定义在98行
+
+
+
 
     // filter keys
     filter_.InsertKeys(uniq_key, key_cnt);  //存放在data_里,data_是一个一维数组,key经过hash之后得到数组下标,key_cnt作为数组元素值存放

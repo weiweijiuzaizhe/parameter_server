@@ -123,7 +123,7 @@ class FmSquareLoss : public BinaryClassificationLoss<T> {
   T evaluate(const EArrayMap& y, const EArrayMap& Xw) { //本意 Xw 就是X(n*m矩阵)和w(m*1) 的乘积  ,但是这里要让Xw 变为FM的预测值 
    
        return   ( y - Xw ).square().sum();
-     //return (1- y * Xw).max(EArray::Zero(y.size())).square().sum();
+
   }
 
 
