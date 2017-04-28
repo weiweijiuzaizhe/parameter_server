@@ -140,9 +140,9 @@ class MinibatchReader {
 
     // filter keys
     filter_.InsertKeys(uniq_key, key_cnt);  //存放在data_里,data_是一个一维数组,key经过hash之后得到数组下标,key_cnt作为数组元素值存放
-    key = filter_.QueryKeys(uniq_key, key_freq_);  //过滤掉出现次数小于key_freq_的维度
+    //key = filter_.FM_QueryKeys(uniq_key, key_freq_);  //过滤掉出现次数小于key_freq_的维度
 
-
+    key = filter_.QueryKeys(uniq_key, key_freq_);
     
 
 

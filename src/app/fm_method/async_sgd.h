@@ -79,7 +79,7 @@ class AsyncSGDServer : public ISGDCompNode {
     if (output.format() == DataConfig::TEXT) {
       CHECK(output.file_size());
       std::string file = output.file(0) + "_" + MyNodeID();
-      CHECK_NOTNULL(model_)->WriteToFile(file);
+      CHECK_NOTNULL(model_)->WriteToFile(file);  // 221
       LOG(INFO) << MyNodeID() << " written the model to " << file;
     }
   }
@@ -196,8 +196,6 @@ class AsyncSGDServer : public ISGDCompNode {
       // update model
       V grad = *data;
       //sum_sq_grad += grad * grad;
-      
-
       //V eta = st->lr->eval(sqrt(sum_sq_grad));
       
       V eta = 0.001;
@@ -269,8 +267,14 @@ class AsyncSGDWorker : public ISGDCompNode {
       mu_.lock();
       auto& data = data_[id];
       mu_.unlock();
-      if (!reader.Read(data.first, data.second, key)) break;
-      VLOG(1) << "load minibatch " << id << ", X: "
+      
+
+      if (!reader.Read(data.first, data.second, key)) break;  //  bool Read(MatrixPtr<V>& Y, MatrixPtr<V>& X, SArray<Key>& key)
+     
+
+     LOG(INFO) << "key.size" << key.size();
+
+     LOG(INFO) << "load minibatch " << id << ", X: "
               << data.second->rows() << "-by-" << data.second->cols();
 
       // pull the weight
@@ -295,11 +299,18 @@ class AsyncSGDWorker : public ISGDCompNode {
     data_.erase(id);
     mu_.unlock();
     CHECK_EQ(X->rows(), Y->rows());
-    VLOG(1) << "compute gradient for minibatch " << id;
+    VLOG(1) << "compute gradient for minibatch " << id;  
 
     // evaluate
     SArray<V> Xw(Y->rows());
-    auto w = model_[id].value;
+    auto w = model_[id].value;  //到这一步value每一行的个数值就已经确定了
+
+
+    LOG(INFO) << "size of model_[id].value:" <<  w.size();
+    LOG(INFO) << "size of model_[id].key:" << model_[id].key.size();
+
+
+    
     Xw.EigenArray() = *X * w.EigenArray();
     SGDProgress prog;
     prog.add_objective(loss_->evaluate({Y, Xw.SMatrix()}));
@@ -323,7 +334,7 @@ class AsyncSGDWorker : public ISGDCompNode {
   }
 
 private:
-  KVVector<Key, V> model_;
+  KVVector<Key, V> model_;  //存放model_的key值和value值
   LossPtr<V> loss_;
 
   // minibatch_id, Y, X

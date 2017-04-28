@@ -29,6 +29,10 @@ class FreqencyFilter {
    */
   SArray<K> QueryKeys(const SArray<K>& key, int freq_thr);
 
+  SArray<K> FM_QueryKeys(const SArray<K>& key, int freq_thr);
+
+
+
   bool Empty() { return count_.empty(); }
 
   /**
@@ -51,16 +55,41 @@ SArray<K> FreqencyFilter<K,V>::QueryKeys(const SArray<K>& key, int freqency) {
   for (auto k : key) {
     if ((int)count_.query(k) > freqency) {  //对应维度上出现的样本数大于freqency
      filtered_key.push_back(k);
+
+
     }
   }
   return filtered_key;
 }
 
+
+
+template<typename K, typename V>
+SArray<K> FreqencyFilter<K,V>::FM_QueryKeys(const SArray<K>& key, int freqency) {  //把维度id和id+10亿 加入key
+  CHECK_LT(freqency, kuint8max) << "change to uint16 or uint32...";
+  
+  int base = 1000000000;
+
+  SArray<K> filtered_key;
+  for (auto k : key) {
+    if ((int)count_.query(k) > freqency) {  //对应维度上出现的样本数大于freqency
+     filtered_key.push_back( k );
+     filtered_key.push_back( k + base );
+
+    }
+  }
+  return filtered_key;
+}
+
+
+
+
+
 template<typename K, typename V>
 void FreqencyFilter<K,V>::InsertKeys(const SArray<K>& key, const SArray<V>& count) {
   CHECK_EQ(key.size(), count.size());
   for (size_t i = 0; i < key.size(); ++i) {
-    count_.insert(key[i], count[i]);
+    count_.insert(key[i], count[i]);  // SArray<V> data_;
   }
 }
 
